@@ -395,12 +395,6 @@ module.exports = class WeepingDoll {
 
 // some helper functions
 
-function countResources (resources) {
-  return Object.keys(resources).reduce((total, k) => {
-    return total + resources[k];
-  }, 0);
-}
-
 function getAffordableCards(player, cards) {
   return cards.filter(hasEnoughResourceForCard.bind(null, player));
 }
@@ -420,34 +414,3 @@ function cardCost(player, card) {
   return shortOf + cost;
 }
 
-function calcAllBonus(cards) {
-  const allBonus = cards.reduce((bonus, card) => {
-    colors.forEach(color => {
-      bonus[color] += card[color] * (4 - card.rank);
-    });
-    return bonus;
-  }, {
-    white: 0,
-    blue: 0,
-    green: 0,
-    red: 0,
-    black: 0,
-  });
-
-  return allBonus;
-}
-
-function cardValue(player, card) {
-  const w1 = 1.5 * (15 - player.score) / 15;
-  const w2 = player.score / 15;
-  const weight = w1 * (1 / (1 + cardCost(player, card))) +
-    w2 * card.points;
-  return weight;
-}
-
-function getBestCard(player, cards) {
-  const sortedCards = cards.sort((cardA, cardB) => {
-    return cardValue(player, cardB) - cardValue(player, cardA);
-  });
-  return sortedCards[0];
-}
