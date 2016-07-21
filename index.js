@@ -50,7 +50,34 @@ for(var i = 0; i < rounds; i++) {
       state = game.takeResources(state, player, action.resources);
     }
 
+
+    const affordableNobles = state.nobles.filter(noble => {
+      return validates.canTakeNoble(player, noble);
+    });
+
+    if(affordableNobles.length > 0) {
+      let pickedNoble = actor.pickNoble(state, affordableNobles);
+      state.nobles = state.nobles.filter(noble => {
+        return pickedNoble.key !== noble.key;
+      });
+      state.players[player.key].score += 3;
+    }
+
+    if(validates.shouldDropResources(player)) {
+      let dropResources = actor.dropResources(state, player.resources);
+      Object.keys(dropResources).forEach(type => {
+        const count = dropResources[type];
+        state.resources[type] += count;
+        state.players[player.key].resources[type] -= count;
+      });
+    }
+    if(validates.shouldDropResources(player)) {
+      throw new Error('ai should implment drop resources correctly');
+    }
+
+    // pass to next player
     playerIndex = (playerIndex + 1) % players;
+
     if(playerIndex == 0) {
       // TODO check end game
       const winnerKey = helpers.getWinner(state);
