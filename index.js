@@ -1,4 +1,5 @@
 'use strict';
+var _ = require('underscore');
 var game = require('./game');
 var validates = require('./validates');
 var helpers = require('./helpers');
@@ -14,7 +15,7 @@ var players = process.env.PLAYERS || 1;
 var rounds = process.env.ROUNDS || 3;
 
 var Actors = require('./AI/actors');
-var actorNames = ['normal'];
+var actorNames = ['doll'];
 
 let turns = [];
 
@@ -87,11 +88,22 @@ for(var i = 0; i < rounds; i++) {
     }
   }
   turns.push(turn);
+  logAvgTurns(turns);
   Actors.destroyActors(state);
 }
 
-var avgTurns = turns.reduce((sum, turn) => {
-  return sum + turn;
-}, 0) / turns.length;
-console.log(`Average turns: ${avgTurns}`);
+function average(nums) {
+  return nums.reduce((sum, turn) => {
+    return sum + turn;
+  }, 0) / nums.length;
+}
+
+function logAvgTurns(turns) {
+  const avgTurns = average(turns);
+  const latestAvgTurns = average(turns.slice(Math.max(turns.length - 10, 1)));
+  console.log(`avg turns: ${avgTurns.toFixed(3)}, latest avg turns: ${latestAvgTurns.toFixed(3)}`);
+}
+logAvgTurns(turns);
+
+process.exit(0);
 
