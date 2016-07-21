@@ -10,12 +10,9 @@ var Combinatorics = require('js-combinatorics');
 
 var model = require('./nn_model');
 
-
 const debug = require('debug')('app/AI/ai_weeping_doll');
 
-const colors = [
-  'white', 'blue', 'green', 'red', 'black'
-];
+const colors = [ 'white', 'blue', 'green', 'red', 'black' ];
 
 const TRAINING = true;
 const LEARNING_RATE = 0.01;
@@ -60,7 +57,7 @@ function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function encodePlayer(player) {
+function encodePlayer(player, state) {
   let features = [];
   // encode player state
   colors.forEach(color => {
@@ -72,28 +69,51 @@ function encodePlayer(player) {
   features.push(normalize(10, player.resources.gold));
 
   for(let i = 0; i < 3; i++) {
-    features = features.concat(encodeCard(player.reservedCards[i] || {}));
+    features = features.concat(encodeCard(player, state, player.reservedCards[i]));
   }
   return features;
 }
 
-function encodeCard(card) {
+function cardBoardValue(player, card, cards) {
+  const { provides } = card;
+  return cards.filter(c => {
+    return c.key !== card.key;
+  }).filter(c => {
+    return c[provides] > player.bonus[provides];
+  }).map(c => {
+    return c[provides] - player.bonus[provides];
+  }).reduce((sum, v) => {
+    return sum + v;
+  }, 0);
+}
+
+function cardNoblesValue(player, card, nobles) {
+  const { provides } = card;
+  return nobles.filter(noble => {
+    return noble[provides] > player.bonus[provides];
+  }).map(noble => {
+    return noble[provides] - player.bonus[provides];
+  }).reduce((sum, v) => {
+    return sum + v;
+  }, 0);
+}
+
+function encodeCard(player, state, card) {
+  if(!card) {
+    return [0, 0, 0, 0];
+  }
+  var cards = state.cards;
+  var nobles = state.nobles;
+
   let features = [];
   // cost
-  colors.forEach(color => {
-    features.push(normalize(10, card[color]));
-  });
-  // provides bonus
-  colors.forEach(color => {
-    var provide = (card.provide == color) ? 1 : 0;
-    if(card.provide == 'random') {
-      provide = 0.2;
-    }
-    features.push(provide);
-  });
+  features.push(normalize(20, cardCost(player, card)));
 
-  // TODO add bonus board value as feature
-  // maybe board color sum or multiplier
+  // provides bonus
+  features.push(normalize(30, cardBoardValue(player, card, cards)));
+
+  // nobles value
+  features.push(normalize(20, cardNoblesValue(player, card, nobles)));
 
   // score
   features.push(normalize(10, card.points));
@@ -103,24 +123,24 @@ function encodeCard(card) {
 function encodeNoble(player, noble) {
   let features = [];
   // cost considering player color bonus
-  colors.forEach(color => {
-    features.push(normalize(10, noble[color] - player.bonus[color]));
-  });
-  features.push(normalize(3, noble.points));
+  var cost = colors.reduce((sum, color) => {
+    return sum + Math.min(0, noble[color] - player.bonus[color]);
+  }, 0);
+  features.push(normalize(3, noble.points / (cost + 1)));
   return features;
 }
 
-function encodeGameState(game) {
-  const { player, players, cards, nobles, resources, deckRemainings } = game;
+function encodeGameState(state) {
+  const { player, players, cards, nobles, resources, deckRemainings } = state;
   let features = [];
 
-  features = features.concat(encodePlayer(player));
+  features = features.concat(encodePlayer(player, state));
 
   // TODO encode other player's state
 
   // cards on board
   for(let i = 0; i < 12; i++) {
-    features = features.concat(encodeCard(cards[i] || {}));
+    features = features.concat(encodeCard(player, state, cards[i]));
   }
 
   // nobles
@@ -142,18 +162,18 @@ function encodeGameState(game) {
   return features;
 }
 
-function encodeAction(action) {
+function encodeAction(player, state, action) {
   const { action: actionName } = action;
   let features = [];
   if(actionName == 'buy') {
-    features = features.concat(encodeCard(action.card));
+    features = features.concat(encodeCard(player, state, action.card));
   } else {
-    features = features.concat(encodeCard({}));
+    features = features.concat(encodeCard(player, state));
   }
   if(actionName == 'hold') {
-    features = features.concat(encodeCard(action.card));
+    features = features.concat(encodeCard(player, state, action.card));
   } else {
-    features = features.concat(encodeCard({}));
+    features = features.concat(encodeCard(player, state));
   }
   colors.forEach(color => {
     features.push(normalize(10, (action.resources || {})[color]));
@@ -334,15 +354,15 @@ module.exports = class WeepingDoll {
   }
 
   turn (state) {
-    const { player } = state;
+    const { player, cards } = state;
 
     const actions = this.getAllActions(state);
     let action;
     const gameFeatures = encodeGameState(state);
     if(Math.random() > EPSILON) { // take best action
       action = actions.sort((actionA, actionB) => {
-        const featureA = gameFeatures.concat(encodeAction(actionA));
-        const featureB = gameFeatures.concat(encodeAction(actionB));
+        const featureA = gameFeatures.concat(encodeAction(player, state, actionA));
+        const featureB = gameFeatures.concat(encodeAction(player, state, actionB));
         const vA = model.net.activate(featureA)[0];
         const vB = model.net.activate(featureB)[0];
         return vB - vA;
@@ -359,15 +379,15 @@ module.exports = class WeepingDoll {
       const futureState = predictState(state, action);
       const futureGameFeatures = encodeGameState(futureState);
       const futureAction = this.getAllActions(futureState).sort((actionA, actionB) => {
-        const featureA = futureGameFeatures.concat(encodeAction(actionA));
-        const featureB = futureGameFeatures.concat(encodeAction(actionB));
+        const featureA = futureGameFeatures.concat(encodeAction(player, state, actionA));
+        const featureB = futureGameFeatures.concat(encodeAction(player, state, actionB));
         const vA = model.net.activate(featureA)[0];
         const vB = model.net.activate(featureB)[0];
         return vB - vA;
       })[0];
       const futurePlayer = futureState.player;
-      const currentFeatures = gameFeatures.concat(encodeAction(action));
-      const futureFeatures = futureGameFeatures.concat(encodeAction(futureAction));
+      const currentFeatures = gameFeatures.concat(encodeAction(player, state, action));
+      const futureFeatures = futureGameFeatures.concat(encodeAction(player, state, futureAction));
       const futureQ = model.net.activate(futureFeatures)[0];
       const target = evalPlayer(futurePlayer) + futureQ;
 
