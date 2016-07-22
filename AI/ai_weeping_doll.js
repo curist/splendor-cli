@@ -17,7 +17,7 @@ const colors = [ 'white', 'blue', 'green', 'red', 'black' ];
 
 const TRAINING = true;
 const LEARNING_RATE = 0.001;
-const EPSILON = 0.5;
+const EPSILON = process.env.EPSILON || 0.5;
 
 var avgCards = {
   1: {
