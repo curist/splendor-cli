@@ -2,7 +2,9 @@
 
 const _ = require('underscore');
 const cards = require('./data/cards.json');
-const nobles = require('./data/nobles.json');
+const nobles = require('./data/nobles.json').map((noble, i) => {
+  return Object.assign({key: i}, noble);
+});
 const gameSetting = require('./data/game-setting');
 const colors = gameSetting.colors;
 const validates = require('./validates');
