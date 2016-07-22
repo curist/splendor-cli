@@ -25,7 +25,7 @@ class Model {
       var model = require('../net.json');
       this.net = Network.fromJSON(model);
     } catch(err) {
-      this.net = new Architect.Perceptron(85, 42, 7, 1);
+      this.net = new Architect.Perceptron(85, 20, 10, 3, 1);
     }
   }
 

@@ -5,7 +5,8 @@ var hasEnoughResourceForCard = helpers.hasEnoughResourceForCard;
 var flattenResources = helpers.flattenResources;
 var zipResources = helpers.zipResources;
 
-var canBuyCard = require('../validates').canBuyCard;
+var validates = require('../validates');
+var canBuyCard = validates.canBuyCard;
 var Combinatorics = require('js-combinatorics');
 
 var model = require('./nn_model');
@@ -15,7 +16,7 @@ const debug = require('debug')('app/AI/ai_weeping_doll');
 const colors = [ 'white', 'blue', 'green', 'red', 'black' ];
 
 const TRAINING = true;
-const LEARNING_RATE = 0.01;
+const LEARNING_RATE = 0.001;
 const EPSILON = 0.5;
 
 var avgCards = {
@@ -218,6 +219,9 @@ function playerBoughtCard(player, state, card) {
     }
   });
 
+  futurePlayer.bonus[card.provides] += 1;
+
+  futurePlayer.score += card.points;
   if(card.status == 'hold') {
     futurePlayer.reservedCards = futurePlayer.reservedCards.filter(cardo => {
       return cardo.key !== card.key;
@@ -226,10 +230,19 @@ function playerBoughtCard(player, state, card) {
     futureState.cards = futureState.cards.filter(cardo => {
       return cardo.key !== card.key;
     });
-    if(state.deckRemainings[card.rank] > 0) {
-      state.deckRemainings[card.rank] -= 1;
+    if(futureState.deckRemainings[card.rank] > 0) {
+      futureState.deckRemainings[card.rank] -= 1;
       futureState.cards.push(avgCards[card.rank]);
     }
+  }
+
+  const affordableNobles = futureState.nobles.filter(noble => {
+    return validates.canTakeNoble(futurePlayer, noble);
+  });
+
+  if(affordableNobles.length > 0) {
+    const noble = futureState.nobles.pop();
+    futurePlayer.score += noble.points;
   }
 
   futureState.player = futurePlayer;
@@ -390,6 +403,9 @@ module.exports = class WeepingDoll {
       const futureFeatures = futureGameFeatures.concat(encodeAction(player, state, futureAction));
       const futureQ = model.net.activate(futureFeatures)[0];
       const target = evalPlayer(futurePlayer) + futureQ;
+      // console.log();
+      // console.log(state);
+      // console.log(futureState);
 
       model.net.activate(currentFeatures);
       model.net.propagate(LEARNING_RATE, target);

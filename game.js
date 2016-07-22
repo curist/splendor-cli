@@ -86,7 +86,7 @@ function newGame(actorNames) {
 // returning `player` after pay for the card
 function playerAcquireCard(oplayer, card) {
   let pay = {};
-  const player = clone(oplayer);
+  let player = clone(oplayer);
   let short = 0;
   colors.forEach(color => {
     const cost = card[color] - player.bonus[color];
