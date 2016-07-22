@@ -182,7 +182,15 @@ function encodeAction(player, state, action) {
   return features;
 }
 
-function evalPlayer(player) {
+function potentialCardValue(player, card) {
+  const totalShortOf = colors.reduce((total, color) => {
+    const diff = Math.max(card[color] - player.bonus[color], 0);
+    return total + diff;
+  }, 0);
+  return card.points / (totalShortOf + 1);
+}
+
+function evalPlayer(state, player) {
   let score = player.score;
 
   let colorScore = 0;
@@ -196,9 +204,24 @@ function evalPlayer(player) {
   player.reservedCards.forEach(card => {
     holdScore += normalize(500, card.points);
   });
-  // debug(score, colorScore, holdScore);
-  return score + colorScore + holdScore;
 
+  function sum(arr) {
+    return arr.reduce((total, n) => {
+      return total + n;
+    }, 0);
+  }
+
+  const allCards = state.cards.concat(player.reservedCards);
+
+  const cardValues = allCards.map(card => {
+    return potentialCardValue(player, card);
+  }).sort().reverse();
+
+  const takeN = Math.floor((15 - player.score) / 3);
+  const boardValue = sum(cardValues.slice(0, takeN));
+
+  // debug(score, colorScore, holdScore, boardValue);
+  return normalize(20, score + colorScore + holdScore + boardValue);
 }
 
 function playerBoughtCard(player, state, card) {
@@ -262,6 +285,10 @@ function playerTakeResources(player, state, resources) {
     futurePlayer.resources[color] += resources[color];
     futureState.resources[color] -= resources[color];
   });
+  if(validates.shouldDropResources(futurePlayer)) {
+    const res = zipResources(_.shuffle(flattenResources(futurePlayer.resources)).slice(0, 10));
+    futurePlayer.resources = res;
+  }
   futureState.player = futurePlayer;
   futureState.players = futureState.players.map(player => {
     if(player.key == futurePlayer.key) {
@@ -402,13 +429,24 @@ module.exports = class WeepingDoll {
       const currentFeatures = gameFeatures.concat(encodeAction(player, state, action));
       const futureFeatures = futureGameFeatures.concat(encodeAction(player, state, futureAction));
       const futureQ = model.net.activate(futureFeatures)[0];
-      const target = evalPlayer(futurePlayer) + futureQ;
+      const target = evalPlayer(futureState, futurePlayer) + futureQ;
       // console.log();
       // console.log(state);
       // console.log(futureState);
 
       model.net.activate(currentFeatures);
       model.net.propagate(LEARNING_RATE, target);
+
+      // console.log();
+      // console.log(player.reservedCards.length);
+      // console.log(actions.reduce((foo, action) => {
+      //   foo[action.action] += 1;
+      //   return foo;
+      // }, {
+      //   buy: 0,
+      //   hold: 0,
+      //   resource: 0,
+      // }));
     }
 
     return action;
@@ -450,3 +488,8 @@ function cardCost(player, card) {
   return shortOf + cost;
 }
 
+function sumPlayerResources(player) {
+  return Object.keys(player.resources).reduce((sum, color) => {
+    return sum + player.resources[color];
+  }, 0);
+}
