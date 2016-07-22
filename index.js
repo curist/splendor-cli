@@ -61,7 +61,7 @@ for(var i = 0; i < rounds; i++) {
       state.nobles = state.nobles.filter(noble => {
         return pickedNoble.key !== noble.key;
       });
-      state.players[player.key].score += 3;
+      state.players[playerIndex].score += 3;
     }
 
     if(validates.shouldDropResources(player)) {
@@ -69,7 +69,7 @@ for(var i = 0; i < rounds; i++) {
       Object.keys(dropResources).forEach(type => {
         const count = dropResources[type];
         state.resources[type] += count;
-        state.players[player.key].resources[type] -= count;
+        state.players[playerIndex].resources[type] -= count;
       });
     }
     if(validates.shouldDropResources(player)) {
@@ -87,9 +87,10 @@ for(var i = 0; i < rounds; i++) {
       }
     }
   }
+  Actors.destroyActors(state);
+
   turns.push(turn);
   logAvgTurns(turns);
-  Actors.destroyActors(state);
 }
 
 function average(nums) {
@@ -100,10 +101,8 @@ function average(nums) {
 
 function logAvgTurns(turns) {
   const avgTurns = average(turns);
-  const latestAvgTurns = average(turns.slice(Math.max(turns.length - 10, 1)));
-  console.log(`avg turns: ${avgTurns.toFixed(3)}, latest avg turns: ${latestAvgTurns.toFixed(3)}`);
+  console.log(`avg turns: ${avgTurns.toFixed(3)}`);
 }
-logAvgTurns(turns);
 
 process.exit(0);
 
